@@ -17,11 +17,11 @@ db_config = {
 
 # Enable SSL for cloud databases (TiDB Serverless, etc.)
 if os.getenv("DB_SSL", "").lower() in ("true", "1", "yes"):
+    import certifi
+    db_config["use_pure"] = True
+    db_config["ssl_ca"] = certifi.where()
     db_config["ssl_verify_cert"] = True
     db_config["ssl_verify_identity"] = True
-    ca_path = os.getenv("DB_SSL_CA", "")
-    if ca_path:
-        db_config["ssl_ca"] = ca_path
 
 pool = pooling.MySQLConnectionPool(**db_config)
 

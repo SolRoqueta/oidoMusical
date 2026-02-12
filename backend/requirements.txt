@@ -6,3 +6,4 @@ python-dotenv==1.0.1
 bcrypt==5.0.0
 PyJWT==2.9.0
 mysql-connector-python==9.6.0
+certifi
