@@ -208,8 +208,12 @@ class RoomState:
         await self.broadcast_player_list()
         return True
 
-    async def remove_player(self, user_id: int):
-        self.players.pop(user_id, None)
+    async def remove_player(self, user_id: int, ws: WebSocket):
+        pc = self.players.get(user_id)
+        # Only remove if the WebSocket matches (avoids removing a newer reconnection)
+        if not pc or pc.ws is not ws:
+            return
+        del self.players[user_id]
 
         # If the stopper disconnected during THINKING, cancel timer and go to ROUND_END
         if self.state == self.THINKING and self.stopper_id == user_id:
@@ -523,4 +527,4 @@ async def game_ws(ws: WebSocket):
     except Exception:
         pass
     finally:
-        await room.remove_player(pc.user_id)
+        await room.remove_player(pc.user_id, ws)

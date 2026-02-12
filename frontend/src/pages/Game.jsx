@@ -53,6 +53,8 @@ export default function Game() {
   const progressIntervalRef = useRef(null);
   const thinkIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   // ── Audio helpers ──
 
@@ -170,17 +172,22 @@ export default function Game() {
 
         switch (data.type) {
           case "state":
-            if (data.state === "LOBBY") {
-              setPhase(PHASES.LOBBY);
-            }
+            // Sync phase with server state on connect/reconnect
+            if (data.state === "LOBBY") setPhase(PHASES.LOBBY);
+            else if (data.state === "PLAYING") setPhase(PHASES.PLAYING);
+            else if (data.state === "THINKING") setPhase(PHASES.WATCHING);
+            else if (data.state === "ROUND_END") setPhase(PHASES.ROUND_END);
             break;
 
           case "players":
             setPlayers(data.players);
             // Update our own canStop from server state
-            if (user) {
-              const me = data.players.find((p) => p.id === user.id);
-              if (me) setCanStop(me.canStop);
+            {
+              const u = userRef.current;
+              if (u) {
+                const me = data.players.find((p) => p.id === u.id);
+                if (me) setCanStop(me.canStop);
+              }
             }
             break;
 
@@ -197,10 +204,11 @@ export default function Game() {
             playPreview(data.previewUrl);
             break;
 
-          case "player_stopped":
+          case "player_stopped": {
+            const u = userRef.current;
             clearAllTimers();
             stopAudio();
-            if (user && data.userId === user.id) {
+            if (u && data.userId === u.id) {
               // I stopped — enter THINKING phase
               setPhase(PHASES.THINKING);
               setThinkTime(100);
@@ -235,13 +243,15 @@ export default function Game() {
               }, 100);
             }
             break;
+          }
 
-          case "keep_listening":
+          case "keep_listening": {
+            const u = userRef.current;
             clearAllTimers();
             setPhase(PHASES.PLAYING);
             setStopperName(null);
             // The player who chose keep_listening loses their stop
-            if (user && data.userId === user.id) {
+            if (u && data.userId === u.id) {
               setCanStop(false);
             }
             // Resume playing audio
@@ -249,6 +259,7 @@ export default function Game() {
               playPreview(previewUrlRef);
             }
             break;
+          }
 
           case "round_won":
             clearAllTimers();
