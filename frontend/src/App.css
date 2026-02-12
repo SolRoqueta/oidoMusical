@@ -636,6 +636,26 @@ h1 {
   background: var(--btn-clear-hover-bg);
 }
 
+/* === Game Button (navbar) === */
+.btn-game {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.btn-game:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--btn-clear-hover-bg);
+}
+
 /* === Admin Button (navbar) === */
 .btn-admin {
   display: flex;
@@ -1227,4 +1247,286 @@ h1 {
 .btn-profile-cancel:hover {
   color: #d47a8a;
   border-color: #d47a8a;
+}
+
+/* === Game Page === */
+.game-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 60px);
+  padding: 2rem;
+}
+
+.game-card {
+  width: 100%;
+  max-width: 500px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 3rem 2rem;
+  box-shadow: 0 4px 24px var(--card-shadow);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.game-icon-big {
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+/* Game prompt & loading */
+.game-prompt {
+  font-size: 1.1rem;
+  color: var(--text);
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+.game-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--card-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: game-spin 0.8s linear infinite;
+}
+
+@keyframes game-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Sound wave animation */
+.game-sound-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+  margin: 0.5rem 0;
+}
+
+.game-wave-bar {
+  width: 6px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 3px;
+  animation: game-wave 0.8s ease-in-out infinite;
+}
+
+.game-wave-bar:nth-child(1) { animation-delay: 0s; }
+.game-wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.game-wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.game-wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.game-wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes game-wave {
+  0%, 100% { height: 12px; opacity: 0.5; }
+  50% { height: 36px; opacity: 1; }
+}
+
+/* Listening (mic recording) */
+.game-listening {
+  color: var(--accent);
+  animation: game-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes game-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+/* Result section */
+.game-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.game-result-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-result-icon.correct {
+  background: rgba(72, 187, 120, 0.15);
+  color: #48bb78;
+}
+
+.game-result-icon.reveal {
+  background: rgba(237, 137, 54, 0.15);
+  color: #ed8936;
+}
+
+.game-congrats {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+/* Song card */
+.game-song-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--btn-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  width: 100%;
+  max-width: 380px;
+  text-align: left;
+}
+
+.game-song-cover {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.game-song-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.game-song-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--song-title-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-song-artist {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.game-song-album {
+  font-size: 0.78rem;
+  color: var(--date-color);
+}
+
+/* Replay (30s playback) */
+.game-replay {
+  width: 100%;
+  max-width: 380px;
+  margin: 0.5rem 0;
+}
+
+.game-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bar-bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.game-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.1s linear;
+}
+
+/* Wrong guess feedback */
+.game-feedback-wrong {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  color: #e53e3e;
+  margin-bottom: 0.5rem;
+}
+
+.game-hint {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+  text-align: center;
+}
+
+/* PARAR button */
+.game-btn-parar {
+  background: #e53e3e !important;
+  color: #fff !important;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 1px;
+  padding: 0.7rem 2.5rem;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.game-btn-parar:hover {
+  background: #c53030 !important;
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .game-result-icon.correct {
+  background: rgba(72, 187, 120, 0.2);
+}
+
+[data-theme="dark"] .game-result-icon.reveal {
+  background: rgba(237, 137, 54, 0.2);
+}
+
+[data-theme="dark"] .game-feedback-wrong {
+  color: #fc8181;
+}
+
+/* Thinking phase buttons */
+.game-thinking-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.game-btn-rindo {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--card-border) !important;
+  font-weight: 600;
+  padding: 0.6rem 1.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.game-btn-rindo:hover {
+  color: #e53e3e !important;
+  border-color: #e53e3e !important;
+}
+
+/* Countdown progress bar (orange) */
+.game-progress-countdown .game-progress-fill {
+  background: #ed8936;
+  transition: width 0.1s linear;
+}
+
+/* Timer label */
+.game-timer-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0;
 }

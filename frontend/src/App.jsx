@@ -9,6 +9,7 @@ import Register from "./pages/Register";
 import Admin from "./pages/Admin";
 import UserDetail from "./pages/UserDetail";
 import Profile, { getAvatarEmoji } from "./pages/Profile";
+import Game from "./pages/Game";
 import "./App.css";
 
 function App() {
@@ -38,6 +39,12 @@ function App() {
               <Link to="/" className="btn-home" title="Inicio">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                   <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+              </Link>
+              <Link to="/game" className="btn-game" title="Juego Musical">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 12h4m-2-2v4m6.5-1.5h.01M18 11h.01" />
+                  <rect x="2" y="6" width="20" height="12" rx="4" />
                 </svg>
               </Link>
               <button className="btn-logout" onClick={logout} title="Cerrar sesión">
@@ -110,6 +117,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/game"
+          element={
+            <ProtectedRoute>
+              <Game />
             </ProtectedRoute>
           }
         />

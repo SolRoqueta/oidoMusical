@@ -17,8 +17,9 @@ from database import init_db, get_connection
 from auth import router as auth_router, get_current_user
 from history import router as history_router
 from admin import router as admin_router
+from game import router as game_router
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI(title="OidoMusical API")
 
@@ -36,6 +37,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(history_router)
 app.include_router(admin_router)
+app.include_router(game_router)
 
 
 @app.on_event("startup")
