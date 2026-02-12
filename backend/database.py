@@ -5,14 +5,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-pool = pooling.MySQLConnectionPool(
-    pool_name="oido_pool",
-    pool_size=5,
-    host=os.getenv("DB_HOST", "localhost"),
-    user=os.getenv("DB_USER", "root"),
-    password=os.getenv("DB_PASSWORD", ""),
-    database=os.getenv("DB_NAME", "oido_musical"),
-)
+db_config = {
+    "pool_name": "oido_pool",
+    "pool_size": 5,
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", "3306")),
+    "user": os.getenv("DB_USER", "root"),
+    "password": os.getenv("DB_PASSWORD", ""),
+    "database": os.getenv("DB_NAME", "oido_musical"),
+}
+
+# Enable SSL for cloud databases (TiDB Serverless, etc.)
+if os.getenv("DB_SSL", "").lower() in ("true", "1", "yes"):
+    db_config["ssl_verify_cert"] = True
+    db_config["ssl_verify_identity"] = True
+    ca_path = os.getenv("DB_SSL_CA", "")
+    if ca_path:
+        db_config["ssl_ca"] = ca_path
+
+pool = pooling.MySQLConnectionPool(**db_config)
 
 
 def get_connection():
@@ -52,11 +63,18 @@ def init_db():
             album VARCHAR(255) DEFAULT '',
             spotify_url VARCHAR(500) DEFAULT '',
             youtube_url VARCHAR(500) DEFAULT '',
+            hidden TINYINT(1) NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             UNIQUE KEY unique_user_song (user_id, title, artist)
         )
     """)
+    # Add hidden column if table already exists without it
+    try:
+        cursor.execute("ALTER TABLE search_history ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS search_log (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -71,12 +89,6 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
-    # Add hidden column to search_history if not exists
-    try:
-        cursor.execute("ALTER TABLE search_history ADD COLUMN hidden TINYINT(1) NOT NULL DEFAULT 0")
-        conn.commit()
-    except Exception:
-        pass
     # Create admin user if not exists
     cursor.execute("SELECT id FROM users WHERE email = %s", ("admin@oidomusical.com",))
     if not cursor.fetchone():
