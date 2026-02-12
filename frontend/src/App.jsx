@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Routes, Route, Navigate, Link } from "react-router-dom";
+import { Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import AudioRecorder from "./components/AudioRecorder";
 import SearchHistory from "./components/SearchHistory";
@@ -9,13 +9,21 @@ import Register from "./pages/Register";
 import Admin from "./pages/Admin";
 import UserDetail from "./pages/UserDetail";
 import Profile, { getAvatarEmoji } from "./pages/Profile";
-import Game from "./pages/Game";
+import Game, { stopGameAudio } from "./pages/Game";
 import "./App.css";
 
 function App() {
   const [historyVersion, setHistoryVersion] = useState(0);
   const [dark, setDark] = useState(() => localStorage.getItem("oidoMusical_theme") === "dark");
   const { user, logout } = useAuth();
+  const location = useLocation();
+
+  // Stop game audio when navigating away from /game
+  useEffect(() => {
+    if (location.pathname !== "/game") {
+      stopGameAudio();
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");

@@ -2,6 +2,17 @@ import { useState, useRef, useEffect } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+// Module-level audio ref so it can be stopped from outside (e.g. route change)
+let _activeAudio = null;
+export function stopGameAudio() {
+  if (_activeAudio) {
+    _activeAudio.pause();
+    _activeAudio.onended = null;
+    _activeAudio.onerror = null;
+    _activeAudio = null;
+  }
+}
+
 const PHASES = {
   IDLE: "IDLE",
   LOADING_SONG: "LOADING_SONG",
@@ -27,6 +38,10 @@ export default function Game() {
   const [progress, setProgress] = useState(0);
   const [thinkTime, setThinkTime] = useState(100);
   const [won, setWon] = useState(false);
+  const [score, setScore] = useState(0);
+  const [genres, setGenres] = useState(null);
+  const [loadingGenres, setLoadingGenres] = useState(false);
+  const [selectedGenres, setSelectedGenres] = useState(new Set());
 
   const sessionTokenRef = useRef(null);
   const previewUrlRef = useRef(null);
@@ -35,11 +50,13 @@ export default function Game() {
   const thinkIntervalRef = useRef(null);
 
   useEffect(() => {
+    fetchGenres();
     return () => {
       stopAudio();
       clearAllTimers();
     };
   }, []);
+
 
   const clearAllTimers = () => {
     if (progressIntervalRef.current) {
@@ -53,11 +70,8 @@ export default function Game() {
   };
 
   const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
-    }
+    stopGameAudio();
+    audioRef.current = null;
   };
 
   // Play song in loop (for reveal phase)
@@ -66,11 +80,42 @@ export default function Game() {
     const audio = new Audio(url);
     audio.loop = true;
     audioRef.current = audio;
+    _activeAudio = audio;
     audio.play().catch(() => {});
   };
 
-  // STEP 1: Fetch random song
-  const handleStart = async () => {
+  // Fetch genres list (called on mount)
+  const fetchGenres = async () => {
+    if (genres) return;
+    setLoadingGenres(true);
+    try {
+      const res = await fetch(`${API_URL}/game/genres`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("Error al obtener géneros");
+      const data = await res.json();
+      setGenres(data.genres);
+    } catch {
+      // Silently fail — user can still play with "Todas"
+    } finally {
+      setLoadingGenres(false);
+    }
+  };
+
+  const toggleGenre = (id) => {
+    setSelectedGenres((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Fetch a song from one of the selected genres
+  const fetchSong = async () => {
+    const ids = [...selectedGenres];
+    const genreId = ids.length > 0 ? ids[Math.floor(Math.random() * ids.length)] : 0;
     setPhase(PHASES.LOADING_SONG);
     setError(null);
     setSongInfo(null);
@@ -81,7 +126,7 @@ export default function Game() {
     clearAllTimers();
 
     try {
-      const res = await fetch(`${API_URL}/game/song`, { headers: authHeaders() });
+      const res = await fetch(`${API_URL}/game/song?genre_id=${genreId}`, { headers: authHeaders() });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || "Error al obtener cancion");
@@ -96,6 +141,17 @@ export default function Game() {
     }
   };
 
+  // "Empezar" from IDLE — resets score
+  const handleStart = () => {
+    setScore(0);
+    fetchSong();
+  };
+
+  // "Jugar de nuevo" from REVEAL — keeps score
+  const handleNextSong = () => {
+    fetchSong();
+  };
+
   // STEP 2: Play 15s preview
   const playPreview = (url) => {
     stopAudio();
@@ -104,6 +160,7 @@ export default function Game() {
 
     const audio = new Audio(url);
     audioRef.current = audio;
+    _activeAudio = audio;
     const startTime = Date.now();
     const duration = 20000;
 
@@ -160,6 +217,7 @@ export default function Game() {
         clearInterval(thinkIntervalRef.current);
         thinkIntervalRef.current = null;
         setWon(true);
+        setScore((s) => s + 1);
         revealSong();
       }
     }, 100);
@@ -209,7 +267,12 @@ export default function Game() {
   return (
     <div className="game-page">
       <div className="game-card">
-        {/* IDLE */}
+        {/* Score indicator */}
+        {phase !== PHASES.IDLE && (
+          <div className="game-score">Puntos: {score}</div>
+        )}
+
+        {/* IDLE — genre selection + start */}
         {phase === PHASES.IDLE && (
           <>
             <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="game-icon-big">
@@ -218,7 +281,28 @@ export default function Game() {
               <circle cx="18" cy="16" r="3" />
             </svg>
             <h1>Adivina la Cancion</h1>
-            <p className="subtitle">Escucha la cancion y adivina cual es</p>
+            <p className="subtitle">Elige una categoria y presiona Empezar</p>
+            {loadingGenres ? (
+              <div className="game-loading-spinner"></div>
+            ) : (
+              <div className="game-genres-grid">
+                <button
+                  className={`game-genre-card${selectedGenres.size === 0 ? " game-genre-selected" : ""}`}
+                  onClick={() => setSelectedGenres(new Set())}
+                >
+                  Todas
+                </button>
+                {genres && genres.map((g) => (
+                  <button
+                    key={g.id}
+                    className={`game-genre-card${selectedGenres.has(g.id) ? " game-genre-selected" : ""}`}
+                    onClick={() => toggleGenre(g.id)}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            )}
             <button className="btn btn-record" onClick={handleStart}>Empezar</button>
           </>
         )}
@@ -315,7 +399,8 @@ export default function Game() {
               <div className="game-wave-bar"></div>
               <div className="game-wave-bar"></div>
             </div>
-            <button className="btn btn-record" onClick={handleStart}>Jugar de nuevo</button>
+            <button className="btn btn-record" onClick={handleNextSong}>Jugar de nuevo</button>
+            <button className="btn game-btn-rindo" onClick={() => { stopAudio(); setPhase(PHASES.IDLE); }} style={{ marginTop: "0.5rem" }}>Cambiar categoria</button>
           </>
         )}
 
@@ -323,7 +408,7 @@ export default function Game() {
         {phase === PHASES.ERROR && (
           <>
             <p className="status error">{error}</p>
-            <button className="btn btn-record" onClick={handleStart}>Reintentar</button>
+            <button className="btn btn-record" onClick={() => setPhase(PHASES.IDLE)}>Reintentar</button>
           </>
         )}
       </div>
