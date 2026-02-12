@@ -2,12 +2,14 @@ import os
 import time
 import random
 import secrets
+import asyncio
 
 import httpx
-from fastapi import APIRouter, HTTPException, Depends, Query
+import jwt
+from fastapi import APIRouter, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect
 from dotenv import load_dotenv
 
-from auth import get_current_user
+from auth import get_current_user, JWT_SECRET, JWT_ALGORITHM
 
 load_dotenv()
 
@@ -99,6 +101,8 @@ async def _fetch_chart_tracks(genre_id: int = 0) -> list[dict]:
     return tracks
 
 
+# ── Existing REST endpoints (kept for single-player backwards compat) ──
+
 @router.get("/genres")
 async def get_genres(user: dict = Depends(get_current_user)):
     genres = await _fetch_genres()
@@ -148,3 +152,375 @@ async def reveal_song(
     }
     del _sessions[sessionToken]
     return {"song": song_info}
+
+
+# ── Multiplayer WebSocket ──
+
+def _authenticate_ws(token: str) -> dict | None:
+    """Authenticate a WebSocket connection using a JWT token."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return {
+            "id": payload["sub"],
+            "username": payload["username"],
+            "role": payload.get("role", "user"),
+        }
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+
+
+class PlayerConnection:
+    def __init__(self, ws: WebSocket, user_id: int, username: str, role: str):
+        self.ws = ws
+        self.user_id = user_id
+        self.username = username
+        self.role = role
+        self.score = 0
+        self.can_stop = True      # Can press PARAR this round
+        self.has_stopped = False   # Currently in THINKING (pressed PARAR)
+
+
+class RoomState:
+    """Singleton game room managing all connected players."""
+
+    LOBBY = "LOBBY"
+    PLAYING = "PLAYING"
+    THINKING = "THINKING"
+    ROUND_END = "ROUND_END"
+
+    def __init__(self):
+        self.state: str = self.LOBBY
+        self.players: dict[int, PlayerConnection] = {}
+        self.current_song: dict | None = None
+        self.stopper_id: int | None = None
+        self.selected_genres: list[int] = []
+        self._think_timer: asyncio.Task | None = None
+        self._play_timer: asyncio.Task | None = None
+
+    # ── Player management ──
+
+    async def add_player(self, pc: PlayerConnection):
+        if self.state != self.LOBBY:
+            await pc.ws.send_json({"type": "error", "message": "La partida ya comenzó. Espera a que vuelvan al lobby."})
+            await pc.ws.close()
+            return False
+        self.players[pc.user_id] = pc
+        await self.broadcast_player_list()
+        return True
+
+    async def remove_player(self, user_id: int):
+        self.players.pop(user_id, None)
+
+        # If the stopper disconnected during THINKING, cancel timer and go to ROUND_END
+        if self.state == self.THINKING and self.stopper_id == user_id:
+            self._cancel_think_timer()
+            self.state = self.ROUND_END
+            song = self._song_info()
+            await self.broadcast({
+                "type": "round_lost",
+                "song": song,
+                "scores": self._scores_list(),
+            })
+        # If no players left, reset everything
+        if not self.players:
+            self._reset()
+            return
+        await self.broadcast_player_list()
+
+    # ── Broadcast helpers ──
+
+    async def broadcast(self, msg: dict):
+        disconnected = []
+        for uid, pc in self.players.items():
+            try:
+                await pc.ws.send_json(msg)
+            except Exception:
+                disconnected.append(uid)
+        for uid in disconnected:
+            self.players.pop(uid, None)
+
+    async def broadcast_player_list(self):
+        players_data = [
+            {
+                "id": pc.user_id,
+                "username": pc.username,
+                "role": pc.role,
+                "score": pc.score,
+                "canStop": pc.can_stop,
+            }
+            for pc in self.players.values()
+        ]
+        await self.broadcast({"type": "players", "players": players_data})
+
+    # ── Game flow ──
+
+    async def start_game(self, genre_ids: list[int]):
+        if self.state != self.LOBBY:
+            return
+        self.selected_genres = genre_ids
+        self.state = self.PLAYING
+        # Reset scores for a new game
+        for pc in self.players.values():
+            pc.score = 0
+            pc.can_stop = True
+            pc.has_stopped = False
+        await self._load_and_send_song()
+
+    async def _load_and_send_song(self):
+        """Load a random song from selected genres and broadcast to all players."""
+        genre_id = random.choice(self.selected_genres) if self.selected_genres else 0
+        tracks = await _fetch_chart_tracks(genre_id)
+        if not tracks:
+            await self.broadcast({"type": "error", "message": "No hay canciones disponibles"})
+            self.state = self.LOBBY
+            return
+
+        track = random.choice(tracks)
+        self.current_song = track
+        self.stopper_id = None
+
+        await self.broadcast({
+            "type": "game_start",
+            "previewUrl": track["preview_url"],
+        })
+
+        # Start 30s play timer (backend safety net)
+        self._cancel_play_timer()
+        self._play_timer = asyncio.create_task(self._play_timeout())
+
+    async def player_stop(self, user_id: int):
+        if self.state != self.PLAYING:
+            return
+        pc = self.players.get(user_id)
+        if not pc or not pc.can_stop:
+            return
+
+        self._cancel_play_timer()
+        self.state = self.THINKING
+        self.stopper_id = user_id
+        pc.has_stopped = True
+
+        # Notify everyone that someone stopped
+        await self.broadcast({
+            "type": "player_stopped",
+            "userId": user_id,
+            "username": pc.username,
+        })
+
+        # Start 10s think timer
+        self._cancel_think_timer()
+        self._think_timer = asyncio.create_task(self._think_timeout())
+
+    async def player_keep_listening(self, user_id: int):
+        if self.state != self.THINKING or self.stopper_id != user_id:
+            return
+        pc = self.players.get(user_id)
+        if not pc:
+            return
+
+        self._cancel_think_timer()
+        pc.can_stop = False
+        pc.has_stopped = False
+        self.stopper_id = None
+        self.state = self.PLAYING
+
+        await self.broadcast({
+            "type": "keep_listening",
+            "userId": user_id,
+            "username": pc.username,
+        })
+
+        # Restart play timer with remaining time (simplified: restart full)
+        self._cancel_play_timer()
+        self._play_timer = asyncio.create_task(self._play_timeout())
+
+    async def player_give_up(self, user_id: int):
+        if self.state != self.THINKING or self.stopper_id != user_id:
+            return
+
+        self._cancel_think_timer()
+        self.state = self.ROUND_END
+        song = self._song_info()
+        await self.broadcast({
+            "type": "round_lost",
+            "song": song,
+            "scores": self._scores_list(),
+        })
+
+    async def next_round(self):
+        if self.state != self.ROUND_END:
+            return
+        self.state = self.PLAYING
+        for pc in self.players.values():
+            pc.can_stop = True
+            pc.has_stopped = False
+        await self.broadcast_player_list()
+        await self._load_and_send_song()
+
+    async def back_to_lobby(self):
+        self._cancel_think_timer()
+        self._cancel_play_timer()
+        self.state = self.LOBBY
+        self.current_song = None
+        self.stopper_id = None
+        for pc in self.players.values():
+            pc.can_stop = True
+            pc.has_stopped = False
+        await self.broadcast({"type": "back_to_lobby"})
+        await self.broadcast_player_list()
+
+    # ── Timers ──
+
+    async def _think_timeout(self):
+        """10s thinking timer. If it expires, the stopper guessed correctly."""
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            return
+
+        pc = self.players.get(self.stopper_id)
+        if not pc:
+            return
+
+        pc.score += 1
+        self.state = self.ROUND_END
+        song = self._song_info()
+        await self.broadcast({
+            "type": "round_won",
+            "song": song,
+            "winnerId": pc.user_id,
+            "winnerName": pc.username,
+            "scores": self._scores_list(),
+        })
+
+    async def _play_timeout(self):
+        """30s play timer. If nobody stops, reveal song automatically."""
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            return
+
+        if self.state != self.PLAYING:
+            return
+
+        self.state = self.ROUND_END
+        song = self._song_info()
+        await self.broadcast({
+            "type": "round_lost",
+            "song": song,
+            "scores": self._scores_list(),
+        })
+
+    def _cancel_think_timer(self):
+        if self._think_timer and not self._think_timer.done():
+            self._think_timer.cancel()
+        self._think_timer = None
+
+    def _cancel_play_timer(self):
+        if self._play_timer and not self._play_timer.done():
+            self._play_timer.cancel()
+        self._play_timer = None
+
+    # ── Helpers ──
+
+    def _song_info(self) -> dict:
+        if not self.current_song:
+            return {}
+        return {
+            "title": self.current_song["title"],
+            "artist": self.current_song["artist"],
+            "album": self.current_song["album"],
+            "cover": self.current_song["cover"],
+        }
+
+    def _scores_list(self) -> list[dict]:
+        return sorted(
+            [{"id": pc.user_id, "username": pc.username, "score": pc.score} for pc in self.players.values()],
+            key=lambda x: x["score"],
+            reverse=True,
+        )
+
+    def _reset(self):
+        self._cancel_think_timer()
+        self._cancel_play_timer()
+        self.state = self.LOBBY
+        self.players.clear()
+        self.current_song = None
+        self.stopper_id = None
+        self.selected_genres = []
+
+
+# Singleton room
+room = RoomState()
+
+
+@router.websocket("/ws")
+async def game_ws(ws: WebSocket):
+    await ws.accept()
+
+    # Authenticate: read token from query param
+    token = ws.query_params.get("token")
+    if not token:
+        # Fallback: read from first message
+        try:
+            first_msg = await asyncio.wait_for(ws.receive_json(), timeout=5)
+            token = first_msg.get("token")
+        except Exception:
+            await ws.send_json({"type": "error", "message": "Token no proporcionado"})
+            await ws.close()
+            return
+
+    user = _authenticate_ws(token)
+    if not user:
+        await ws.send_json({"type": "error", "message": "Token inválido o expirado"})
+        await ws.close()
+        return
+
+    pc = PlayerConnection(ws, user["id"], user["username"], user["role"])
+
+    # Send current state before adding (so it arrives before the player list broadcast)
+    await ws.send_json({"type": "state", "state": room.state})
+
+    added = await room.add_player(pc)
+    if not added:
+        return
+
+    try:
+        while True:
+            data = await ws.receive_json()
+            msg_type = data.get("type")
+
+            if msg_type == "start":
+                if pc.role != "admin":
+                    await ws.send_json({"type": "error", "message": "Solo el admin puede iniciar la partida"})
+                    continue
+                genres = data.get("genres", [])
+                await room.start_game(genres)
+
+            elif msg_type == "stop":
+                await room.player_stop(pc.user_id)
+
+            elif msg_type == "keep_listening":
+                await room.player_keep_listening(pc.user_id)
+
+            elif msg_type == "give_up":
+                await room.player_give_up(pc.user_id)
+
+            elif msg_type == "next_round":
+                if pc.role != "admin":
+                    await ws.send_json({"type": "error", "message": "Solo el admin puede avanzar de ronda"})
+                    continue
+                await room.next_round()
+
+            elif msg_type == "back_to_lobby":
+                if pc.role != "admin":
+                    await ws.send_json({"type": "error", "message": "Solo el admin puede volver al lobby"})
+                    continue
+                await room.back_to_lobby()
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await room.remove_player(pc.user_id)

@@ -1582,3 +1582,227 @@ h1 {
   font-weight: 700;
   color: var(--accent);
 }
+
+/* === Multiplayer Game === */
+
+.game-card-multi {
+  max-width: 560px;
+}
+
+/* Players section in lobby */
+.game-players-section {
+  width: 100%;
+  margin: 0.75rem 0;
+}
+
+.game-players-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem 0;
+}
+
+.game-players-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.game-players-inline {
+  margin: 0.75rem 0;
+}
+
+/* Player chip */
+.game-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  background: var(--btn-save-bg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: all 0.2s;
+}
+
+.game-player-chip.admin {
+  border-color: #ecc94b;
+  box-shadow: 0 0 0 2px rgba(236, 201, 75, 0.2);
+}
+
+[data-theme="dark"] .game-player-chip.admin {
+  border-color: #d69e2e;
+  box-shadow: 0 0 0 2px rgba(214, 158, 46, 0.2);
+}
+
+.game-player-chip.mini {
+  padding: 0.25rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.game-player-chip.eliminated {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.game-player-chip.stopped {
+  border-color: #e53e3e;
+  background: rgba(229, 62, 62, 0.08);
+}
+
+.game-player-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Admin badge */
+.game-admin-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #d69e2e;
+  background: rgba(236, 201, 75, 0.15);
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+}
+
+[data-theme="dark"] .game-admin-badge {
+  color: #ecc94b;
+  background: rgba(236, 201, 75, 0.12);
+}
+
+/* Status dot */
+.game-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 0.2rem;
+}
+
+.game-status-dot.green {
+  background: #48bb78;
+}
+
+.game-status-dot.red {
+  background: #e53e3e;
+}
+
+/* Waiting text (pulsing) */
+.game-waiting-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin: 1rem 0;
+  animation: game-text-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes game-text-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Genre label in lobby */
+.game-genres-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0.75rem 0 0.5rem 0;
+}
+
+/* Scoreboard */
+.game-scoreboard {
+  width: 100%;
+  max-width: 380px;
+  margin: 0.75rem 0;
+  background: var(--btn-save-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+}
+
+.game-scoreboard-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 0.5rem 0;
+}
+
+.game-scoreboard-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.game-scoreboard-row.first {
+  background: rgba(180, 142, 224, 0.1);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .game-scoreboard-row.first {
+  background: rgba(180, 142, 224, 0.15);
+}
+
+.game-scoreboard-rank {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  min-width: 28px;
+}
+
+.game-scoreboard-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-align: left;
+}
+
+.game-scoreboard-points {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Round end buttons */
+.game-round-end-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+/* Error toast */
+.game-error-toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #e53e3e;
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(229, 62, 62, 0.3);
+  animation: game-toast-in 0.3s ease-out;
+}
+
+@keyframes game-toast-in {
+  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
