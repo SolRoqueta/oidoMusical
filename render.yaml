@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: oidomusical-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ACR_ACCESS_KEY
+        sync: false
+      - key: ACR_ACCESS_SECRET
+        sync: false
+      - key: ACR_HOST
+        value: identify-us-west-2.acrcloud.com
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
