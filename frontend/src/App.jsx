@@ -1,22 +1,121 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { Routes, Route, Navigate, Link } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 import AudioRecorder from "./components/AudioRecorder";
 import SearchHistory from "./components/SearchHistory";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Admin from "./pages/Admin";
+import UserDetail from "./pages/UserDetail";
+import Profile, { getAvatarEmoji } from "./pages/Profile";
 import "./App.css";
 
 function App() {
   const [historyVersion, setHistoryVersion] = useState(0);
+  const [dark, setDark] = useState(() => localStorage.getItem("oidoMusical_theme") === "dark");
+  const { user, logout } = useAuth();
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    localStorage.setItem("oidoMusical_theme", dark ? "dark" : "light");
+  }, [dark]);
 
   const handleHistoryUpdate = useCallback(() => {
     setHistoryVersion((v) => v + 1);
   }, []);
 
   return (
-    <div className="app">
-      <h1>OidoMusical</h1>
-      <p className="subtitle">Tararea una canción y descubre su nombre</p>
-      <AudioRecorder onHistoryUpdate={handleHistoryUpdate} />
-      <SearchHistory refreshKey={historyVersion} onClear={handleHistoryUpdate} />
-    </div>
+    <>
+      <nav className="navbar">
+        <div className="navbar-inner">
+          {user ? (
+            <div className="navbar-user">
+              <Link to="/profile" className="navbar-user-link" title="Mi perfil">
+                <span className="navbar-avatar">{getAvatarEmoji(user.avatar)}</span>
+                <span>{user.username}</span>
+              </Link>
+              <Link to="/" className="btn-home" title="Inicio">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+              </Link>
+              <button className="btn-logout" onClick={logout} title="Cerrar sesión">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <span className="navbar-title">OidoMusical</span>
+          )}
+          <div className="theme-switch" onClick={() => setDark((d) => !d)} title={dark ? "Modo claro" : "Modo oscuro"}>
+            <div className={`theme-switch-track ${dark ? "dark" : ""}`}>
+              <span className="theme-switch-icon sun">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <circle cx="12" cy="12" r="5" />
+                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="theme-switch-icon moon">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
+                </svg>
+              </span>
+              <div className="theme-switch-thumb" />
+            </div>
+          </div>
+        </div>
+      </nav>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              {user?.role === "admin" ? (
+                <Navigate to="/admin" replace />
+              ) : (
+                <div className="app">
+                  <div className="main-panel">
+                    <h1>OidoMusical</h1>
+                    <p className="subtitle">Tararea una canción y descubre su nombre</p>
+                    <AudioRecorder onHistoryUpdate={handleHistoryUpdate} />
+                  </div>
+                  <SearchHistory refreshKey={historyVersion} onClear={handleHistoryUpdate} />
+                </div>
+              )}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              {user?.role === "admin" ? <Admin /> : <Navigate to="/" replace />}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/user/:userId"
+          element={
+            <ProtectedRoute>
+              {user?.role === "admin" ? <UserDetail /> : <Navigate to="/" replace />}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .note { fill: #b48ee0; }
+    .ring1 { stroke: #e8a0c4; fill: none; stroke-width: 2; }
+    .ring2 { stroke: #89b8e0; fill: none; stroke-width: 2; }
+    .bg { fill: #faf0ff; }
+    @media (prefers-color-scheme: dark) {
+      .note { fill: #c4a0e8; }
+      .ring1 { stroke: #e8a0c4; }
+      .ring2 { stroke: #7a9ed0; }
+      .bg { fill: #1e1a2e; }
+    }
+    .ring1 { animation: pulse1 2s ease-in-out infinite; transform-origin: center; }
+    .ring2 { animation: pulse2 2s ease-in-out infinite 0.4s; transform-origin: center; }
+    @keyframes pulse1 {
+      0%, 100% { opacity: 0.3; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pulse2 {
+      0%, 100% { opacity: 0.2; transform: scale(0.9); }
+      50% { opacity: 0.8; transform: scale(1); }
+    }
+  </style>
+  <circle class="bg" cx="32" cy="32" r="32"/>
+  <ellipse class="ring2" cx="32" cy="32" rx="28" ry="28"/>
+  <ellipse class="ring1" cx="32" cy="32" rx="22" ry="22"/>
+  <path class="note" d="M28 16v22a8 8 0 1 0 4 6.9V24h10v-8H28z"/>
+</svg>

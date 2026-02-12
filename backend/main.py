@@ -9,9 +9,14 @@ from pathlib import Path
 from urllib.parse import quote_plus
 
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+
+from database import init_db, get_connection
+from auth import router as auth_router, get_current_user
+from history import router as history_router
+from admin import router as admin_router
 
 load_dotenv()
 
@@ -20,9 +25,19 @@ app = FastAPI(title="OidoMusical API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
+app.include_router(history_router)
+app.include_router(admin_router)
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 ACR_ACCESS_KEY = os.getenv("ACR_ACCESS_KEY", "")
 ACR_ACCESS_SECRET = os.getenv("ACR_ACCESS_SECRET", "")
@@ -47,7 +62,7 @@ def health():
 
 
 @app.post("/recognize")
-async def recognize_audio(audio: UploadFile = File(...)):
+async def recognize_audio(audio: UploadFile = File(...), user: dict = Depends(get_current_user)):
     content = await audio.read()
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="El archivo de audio está vacío")
@@ -121,6 +136,22 @@ async def recognize_audio(audio: UploadFile = File(...)):
             "spotifyUrl": spotify_url,
             "youtubeUrl": youtube_url,
         })
+
+    # Log all results to search_log
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        for s in songs:
+            cursor.execute(
+                "INSERT INTO search_log (user_id, title, artist, album, spotify_url, youtube_url, score) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (user["id"], s["title"], s["artist"], s["album"], s["spotifyUrl"], s["youtubeUrl"], s["score"]),
+            )
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        pass
 
     return {
         "found": True,
