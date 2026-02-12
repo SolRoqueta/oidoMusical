@@ -1,0 +1,293 @@
+#root {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0;
+}
+
+.subtitle {
+  color: #888;
+  margin-top: 0;
+}
+
+.recorder {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.btn {
+  padding: 1rem 2.5rem;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.btn:hover {
+  transform: scale(1.05);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-record {
+  background: #4f46e5;
+  color: white;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+}
+
+.btn-stop {
+  background: #ef4444;
+  color: white;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+}
+
+/* === Audio Playback === */
+.playback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.playback-label {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* === Waveform Player (WhatsApp style) === */
+.waveform-player {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #1a1a2e;
+  border-radius: 24px;
+  padding: 0.5rem 1rem 0.5rem 0.5rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.wf-play-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.wf-play-btn:hover {
+  background: #6366f1;
+}
+
+.wf-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.wf-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.wf-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px;
+  background: #444;
+  transition: background 0.15s;
+}
+
+.wf-bar-played {
+  background: #4f46e5;
+}
+
+.wf-bar-loading {
+  background: #333;
+  animation: barPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes barPulse {
+  from { opacity: 0.3; }
+  to { opacity: 0.7; }
+}
+
+.wf-time {
+  font-size: 0.7rem;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  font-size: 1rem;
+  color: #666;
+}
+
+.status.recording {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.status.loading {
+  color: #4f46e5;
+}
+
+.status.error {
+  color: #dc2626;
+}
+
+.results {
+  width: 100%;
+  text-align: left;
+}
+
+.results h2 {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.song-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.song-item {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.song-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.song-artist {
+  color: #a78bfa;
+}
+
+.song-album {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+/* === Song Links === */
+.song-links {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.song-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.song-link:hover {
+  opacity: 0.8;
+}
+
+.spotify-link {
+  background: #1db954;
+  color: #fff;
+}
+
+.youtube-link {
+  background: #ff0000;
+  color: #fff;
+}
+
+/* === Search History === */
+.history {
+  width: 100%;
+  margin-top: 2rem;
+  border-top: 1px solid #333;
+  padding-top: 1.5rem;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.history-header h2 {
+  margin: 0;
+  text-align: left;
+}
+
+.btn-clear {
+  background: transparent;
+  border: 1px solid #666;
+  color: #888;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.btn-clear:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.song-date {
+  color: #555;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
