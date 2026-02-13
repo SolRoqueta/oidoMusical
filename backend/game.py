@@ -7,9 +7,11 @@ import asyncio
 import httpx
 import jwt
 from fastapi import APIRouter, HTTPException, Depends, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from auth import get_current_user, JWT_SECRET, JWT_ALGORITHM
+from database import get_connection
 
 load_dotenv()
 
@@ -181,14 +183,19 @@ class PlayerConnection:
 
 
 class RoomState:
-    """Singleton game room managing all connected players."""
+    """Game room managing all connected players."""
 
     LOBBY = "LOBBY"
     PLAYING = "PLAYING"
     THINKING = "THINKING"
     ROUND_END = "ROUND_END"
 
-    def __init__(self):
+    def __init__(self, room_id: str, creator_id: int, creator_username: str, invited_ids: set[int]):
+        self.room_id = room_id
+        self.creator_id = creator_id
+        self.creator_username = creator_username
+        self.invited_ids = invited_ids
+        self.created_at = time.time()
         self.state: str = self.LOBBY
         self.players: dict[int, PlayerConnection] = {}
         self.current_song: dict | None = None
@@ -225,9 +232,10 @@ class RoomState:
                 "song": song,
                 "scores": self._scores_list(),
             })
-        # If no players left, reset everything
+        # If no players left, clean up
         if not self.players:
             self._reset()
+            rooms.pop(self.room_id, None)
             return
         await self.broadcast_player_list()
 
@@ -248,7 +256,7 @@ class RoomState:
             {
                 "id": pc.user_id,
                 "username": pc.username,
-                "role": pc.role,
+                "isCreator": pc.user_id == self.creator_id,
                 "score": pc.score,
                 "canStop": pc.can_stop,
             }
@@ -454,18 +462,104 @@ class RoomState:
         self.selected_genres = []
 
 
-# Singleton room
-room = RoomState()
+# Multi-room store
+rooms: dict[str, RoomState] = {}
 
 
-@router.websocket("/ws")
-async def game_ws(ws: WebSocket):
+def _cleanup_rooms():
+    """Remove stale empty rooms older than 30 minutes."""
+    now = time.time()
+    expired = [rid for rid, r in rooms.items() if not r.players and now - r.created_at > 1800]
+    for rid in expired:
+        del rooms[rid]
+
+
+# ── REST endpoints for room management ──
+
+class CreateRoomBody(BaseModel):
+    invited_ids: list[int]
+
+
+@router.post("/rooms")
+def create_room(body: CreateRoomBody, user: dict = Depends(get_current_user)):
+    _cleanup_rooms()
+
+    if not body.invited_ids:
+        raise HTTPException(status_code=400, detail="Debes invitar al menos un amigo")
+
+    # Validate all invited_ids are accepted friends
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        placeholders = ",".join(["%s"] * len(body.invited_ids))
+        cursor.execute(
+            f"""SELECT CASE WHEN sender_id = %s THEN receiver_id ELSE sender_id END AS friend_id
+                FROM friendships
+                WHERE status = 'accepted'
+                  AND ((sender_id = %s AND receiver_id IN ({placeholders}))
+                    OR (receiver_id = %s AND sender_id IN ({placeholders})))""",
+            [user["id"], user["id"]] + body.invited_ids + [user["id"]] + body.invited_ids,
+        )
+        valid_friend_ids = {row["friend_id"] for row in cursor.fetchall()}
+        invalid = set(body.invited_ids) - valid_friend_ids
+        if invalid:
+            raise HTTPException(status_code=400, detail="Algunos usuarios no son tus amigos")
+    finally:
+        cursor.close()
+        conn.close()
+
+    room_id = secrets.token_urlsafe(6)
+    while room_id in rooms:
+        room_id = secrets.token_urlsafe(6)
+
+    invited_set = set(body.invited_ids)
+    new_room = RoomState(room_id, user["id"], user["username"], invited_set)
+    rooms[room_id] = new_room
+
+    return {"roomId": room_id, "invitedCount": len(invited_set)}
+
+
+@router.get("/rooms")
+def get_my_rooms(user: dict = Depends(get_current_user)):
+    _cleanup_rooms()
+    result = []
+    for r in rooms.values():
+        if r.creator_id == user["id"] or user["id"] in r.invited_ids:
+            result.append({
+                "roomId": r.room_id,
+                "creatorUsername": r.creator_username,
+                "creatorId": r.creator_id,
+                "playerCount": len(r.players),
+                "state": r.state,
+                "createdAt": r.created_at,
+            })
+    return result
+
+
+@router.delete("/rooms/{room_id}")
+async def close_room(room_id: str, user: dict = Depends(get_current_user)):
+    current_room = rooms.get(room_id)
+    if not current_room:
+        raise HTTPException(status_code=404, detail="Sala no encontrada")
+    if current_room.creator_id != user["id"]:
+        raise HTTPException(status_code=403, detail="Solo el creador puede cerrar la sala")
+
+    # Notify and disconnect all players
+    await current_room.broadcast({"type": "room_closed", "message": "El creador cerró la sala"})
+    current_room._reset()
+    rooms.pop(room_id, None)
+    return {"message": "Sala cerrada"}
+
+
+# ── WebSocket endpoint (per room) ──
+
+@router.websocket("/ws/{room_id}")
+async def game_ws(ws: WebSocket, room_id: str):
     await ws.accept()
 
     # Authenticate: read token from query param
     token = ws.query_params.get("token")
     if not token:
-        # Fallback: read from first message
         try:
             first_msg = await asyncio.wait_for(ws.receive_json(), timeout=5)
             token = first_msg.get("token")
@@ -480,12 +574,25 @@ async def game_ws(ws: WebSocket):
         await ws.close()
         return
 
+    # Find the room
+    current_room = rooms.get(room_id)
+    if not current_room:
+        await ws.send_json({"type": "error", "message": "Sala no encontrada"})
+        await ws.close()
+        return
+
+    # Validate user is creator or invited
+    if user["id"] != current_room.creator_id and user["id"] not in current_room.invited_ids:
+        await ws.send_json({"type": "error", "message": "No tienes acceso a esta sala"})
+        await ws.close()
+        return
+
     pc = PlayerConnection(ws, user["id"], user["username"], user["role"])
 
-    # Send current state before adding (so it arrives before the player list broadcast)
-    await ws.send_json({"type": "state", "state": room.state})
+    # Send current state before adding
+    await ws.send_json({"type": "state", "state": current_room.state})
 
-    added = await room.add_player(pc)
+    added = await current_room.add_player(pc)
     if not added:
         return
 
@@ -495,36 +602,36 @@ async def game_ws(ws: WebSocket):
             msg_type = data.get("type")
 
             if msg_type == "start":
-                if pc.role != "admin":
-                    await ws.send_json({"type": "error", "message": "Solo el admin puede iniciar la partida"})
+                if pc.user_id != current_room.creator_id:
+                    await ws.send_json({"type": "error", "message": "Solo el creador puede iniciar la partida"})
                     continue
                 genres = data.get("genres", [])
-                await room.start_game(genres)
+                await current_room.start_game(genres)
 
             elif msg_type == "stop":
-                await room.player_stop(pc.user_id)
+                await current_room.player_stop(pc.user_id)
 
             elif msg_type == "keep_listening":
-                await room.player_keep_listening(pc.user_id)
+                await current_room.player_keep_listening(pc.user_id)
 
             elif msg_type == "give_up":
-                await room.player_give_up(pc.user_id)
+                await current_room.player_give_up(pc.user_id)
 
             elif msg_type == "next_round":
-                if pc.role != "admin":
-                    await ws.send_json({"type": "error", "message": "Solo el admin puede avanzar de ronda"})
+                if pc.user_id != current_room.creator_id:
+                    await ws.send_json({"type": "error", "message": "Solo el creador puede avanzar de ronda"})
                     continue
-                await room.next_round()
+                await current_room.next_round()
 
             elif msg_type == "back_to_lobby":
-                if pc.role != "admin":
-                    await ws.send_json({"type": "error", "message": "Solo el admin puede volver al lobby"})
+                if pc.user_id != current_room.creator_id:
+                    await ws.send_json({"type": "error", "message": "Solo el creador puede volver al lobby"})
                     continue
-                await room.back_to_lobby()
+                await current_room.back_to_lobby()
 
     except WebSocketDisconnect:
         pass
     except Exception:
         pass
     finally:
-        await room.remove_player(pc.user_id, ws)
+        await current_room.remove_player(pc.user_id, ws)

@@ -10,6 +10,7 @@ import Admin from "./pages/Admin";
 import UserDetail from "./pages/UserDetail";
 import Profile, { getAvatarEmoji } from "./pages/Profile";
 import Game, { stopGameAudio } from "./pages/Game";
+import GameRooms from "./pages/GameRooms";
 import Friends from "./pages/Friends";
 import PublicProfile from "./pages/PublicProfile";
 import "./App.css";
@@ -20,9 +21,9 @@ function App() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  // Stop game audio when navigating away from /game
+  // Stop game audio when navigating away from /game/:roomId
   useEffect(() => {
-    if (location.pathname !== "/game") {
+    if (!location.pathname.startsWith("/game/")) {
       stopGameAudio();
     }
   }, [location.pathname]);
@@ -137,6 +138,14 @@ function App() {
         />
         <Route
           path="/game"
+          element={
+            <ProtectedRoute>
+              <GameRooms />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/game/:roomId"
           element={
             <ProtectedRoute>
               <Game />

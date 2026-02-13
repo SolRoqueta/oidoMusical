@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const WS_URL = (API_URL.replace(/^http/, "ws")) + "/game/ws";
+const WS_BASE = API_URL.replace(/^http/, "ws");
 
 // Module-level audio ref so it can be stopped from outside (e.g. route change)
 let _activeAudio = null;
@@ -31,7 +32,9 @@ function getToken() {
 
 export default function Game() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const { roomId } = useParams();
+  const [creatorId, setCreatorId] = useState(null);
+  const isAdmin = user?.id === creatorId;
 
   const [phase, setPhase] = useState(PHASES.CONNECTING);
   const [players, setPlayers] = useState([]);
@@ -80,7 +83,7 @@ export default function Game() {
     audioRef.current = audio;
     _activeAudio = audio;
     const startTime = Date.now();
-    const duration = 20000;
+    const duration = 30000;
 
     audio.addEventListener("canplaythrough", () => {
       audio.play().catch(() => {});
@@ -155,7 +158,7 @@ export default function Game() {
 
     function connect() {
       setPhase(PHASES.CONNECTING);
-      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+      const ws = new WebSocket(`${WS_BASE}/game/ws/${roomId}?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -181,8 +184,9 @@ export default function Game() {
 
           case "players":
             setPlayers(data.players);
-            // Update our own canStop from server state
             {
+              const creator = data.players.find((p) => p.isCreator);
+              if (creator) setCreatorId(creator.id);
               const u = userRef.current;
               if (u) {
                 const me = data.players.find((p) => p.id === u.id);
@@ -294,6 +298,13 @@ export default function Game() {
             setCanStop(true);
             break;
 
+          case "room_closed":
+            clearAllTimers();
+            stopAudio();
+            setError(data.message || "La sala fue cerrada");
+            setPhase(PHASES.ERROR);
+            break;
+
           case "error":
             setError(data.message);
             break;
@@ -330,7 +341,7 @@ export default function Game() {
       clearAllTimers();
       stopAudio();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Handlers ──
 
@@ -392,16 +403,18 @@ export default function Game() {
               <circle cx="18" cy="16" r="3" />
             </svg>
             <h1>Adivina la Cancion</h1>
-            <p className="subtitle">Modo Multijugador</p>
+            <p className="subtitle">Sala de {players.find((p) => p.isCreator)?.username || "..."}</p>
+
+            <Link to="/game" className="game-back-link">Volver a salas</Link>
 
             {/* Player list */}
             <div className="game-players-section">
               <p className="game-players-title">Jugadores conectados ({players.length})</p>
               <div className="game-players-list">
                 {players.map((p) => (
-                  <div key={p.id} className={`game-player-chip${p.role === "admin" ? " admin" : ""}`}>
+                  <div key={p.id} className={`game-player-chip${p.isCreator ? " admin" : ""}`}>
                     <span className="game-player-name">{p.username}</span>
-                    {p.role === "admin" && <span className="game-admin-badge">Admin</span>}
+                    {p.isCreator && <span className="game-admin-badge">Admin</span>}
                   </div>
                 ))}
               </div>
@@ -443,7 +456,7 @@ export default function Game() {
             )}
 
             {!isAdmin && (
-              <p className="game-waiting-text">Esperando que el admin inicie la partida...</p>
+              <p className="game-waiting-text">Esperando que el creador inicie la partida...</p>
             )}
           </>
         )}
@@ -597,7 +610,7 @@ export default function Game() {
               </div>
             )}
             {!isAdmin && (
-              <p className="game-waiting-text">Esperando al admin...</p>
+              <p className="game-waiting-text">Esperando al creador...</p>
             )}
           </>
         )}
@@ -606,7 +619,10 @@ export default function Game() {
         {phase === PHASES.ERROR && (
           <>
             <p className="status error">{error}</p>
-            <button className="btn btn-record" onClick={() => window.location.reload()}>Reintentar</button>
+            <div className="game-round-end-buttons">
+              <button className="btn btn-record" onClick={() => window.location.reload()}>Reintentar</button>
+              <Link to="/game" className="btn game-btn-rindo" style={{ textDecoration: "none", textAlign: "center" }}>Volver a salas</Link>
+            </div>
           </>
         )}
 
