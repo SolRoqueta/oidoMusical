@@ -35,6 +35,7 @@ export default function SoloGame() {
   const audioRef = useRef(null);
   const progressIntervalRef = useRef(null);
   const thinkIntervalRef = useRef(null);
+  const sessionTokenRef = useRef(null);
 
   // ── Helpers ──
 
@@ -53,12 +54,39 @@ export default function SoloGame() {
     stopGameAudio();
     if (_activeAudio) {
       _activeAudio.pause();
+      _activeAudio.removeAttribute("src");
+      _activeAudio.load();
       _activeAudio.onended = null;
       _activeAudio.onerror = null;
       _activeAudio = null;
     }
-    audioRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
+      audioRef.current = null;
+    }
   }, []);
+
+  const autoReveal = useCallback(async () => {
+    clearAllTimers();
+    stopAudio();
+    setPhase(PHASES.REVEAL);
+    const token = getToken();
+    const st = sessionTokenRef.current;
+    if (!st) return;
+    try {
+      const res = await fetch(`${API_URL}/game/reveal?sessionToken=${encodeURIComponent(st)}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Error al revelar la cancion");
+      const data = await res.json();
+      setSongInfo(data.song);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [clearAllTimers, stopAudio]);
 
   const playPreview = useCallback((url) => {
     stopAudio();
@@ -79,6 +107,8 @@ export default function SoloGame() {
         if (elapsed >= duration) {
           clearInterval(progressIntervalRef.current);
           progressIntervalRef.current = null;
+          audio.pause();
+          autoReveal();
         }
       }, 100);
     }, { once: true });
@@ -88,16 +118,7 @@ export default function SoloGame() {
     }, { once: true });
 
     audio.load();
-  }, [stopAudio, clearAllTimers]);
-
-  const playSongLoop = useCallback((url) => {
-    stopAudio();
-    const audio = new Audio(url);
-    audio.loop = true;
-    audioRef.current = audio;
-    _activeAudio = audio;
-    audio.play().catch(() => {});
-  }, [stopAudio]);
+  }, [stopAudio, clearAllTimers, autoReveal]);
 
   // ── Cleanup on unmount ──
 
@@ -145,6 +166,7 @@ export default function SoloGame() {
       if (!res.ok) throw new Error("No hay canciones disponibles");
       const data = await res.json();
       setSessionToken(data.sessionToken);
+      sessionTokenRef.current = data.sessionToken;
       setPreviewUrl(data.previewUrl);
       setProgress(0);
       setThinkTime(100);
@@ -199,7 +221,6 @@ export default function SoloGame() {
       if (!res.ok) throw new Error("Error al revelar la cancion");
       const data = await res.json();
       setSongInfo(data.song);
-      if (previewUrl) playSongLoop(previewUrl);
     } catch (err) {
       setError(err.message);
     }
@@ -221,6 +242,7 @@ export default function SoloGame() {
       if (!res.ok) throw new Error("No hay canciones disponibles");
       const data = await res.json();
       setSessionToken(data.sessionToken);
+      sessionTokenRef.current = data.sessionToken;
       setPreviewUrl(data.previewUrl);
       setProgress(0);
       setThinkTime(100);
