@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getFriends } from "../utils/social";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -33,6 +34,11 @@ export default function Profile() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [friendsCount, setFriendsCount] = useState(0);
+
+  useEffect(() => {
+    getFriends().then((f) => setFriendsCount(f.length));
+  }, []);
 
   const handleEdit = () => {
     setEditing(true);
@@ -182,6 +188,12 @@ export default function Profile() {
               <div className="profile-field-view">
                 <span className="profile-label">Rol</span>
                 <span className={`admin-role ${user.role}`}>{user.role}</span>
+              </div>
+              <div className="profile-field-view">
+                <span className="profile-label">Amigos</span>
+                <Link to="/friends" className="profile-friends-link">
+                  {friendsCount} {friendsCount === 1 ? "amigo" : "amigos"}
+                </Link>
               </div>
             </div>
 

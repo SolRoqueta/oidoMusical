@@ -10,6 +10,8 @@ import Admin from "./pages/Admin";
 import UserDetail from "./pages/UserDetail";
 import Profile, { getAvatarEmoji } from "./pages/Profile";
 import Game, { stopGameAudio } from "./pages/Game";
+import Friends from "./pages/Friends";
+import PublicProfile from "./pages/PublicProfile";
 import "./App.css";
 
 function App() {
@@ -53,6 +55,11 @@ function App() {
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6 12h4m-2-2v4m6.5-1.5h.01M18 11h.01" />
                   <rect x="2" y="6" width="20" height="12" rx="4" />
+                </svg>
+              </Link>
+              <Link to="/friends" className="btn-friends" title="Amigos">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
                 </svg>
               </Link>
               <button className="btn-logout" onClick={logout} title="Cerrar sesión">
@@ -133,6 +140,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Game />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/friends"
+          element={
+            <ProtectedRoute>
+              <Friends />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/:userId"
+          element={
+            <ProtectedRoute>
+              <PublicProfile />
             </ProtectedRoute>
           }
         />

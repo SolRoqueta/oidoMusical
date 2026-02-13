@@ -18,6 +18,7 @@ from auth import router as auth_router, get_current_user
 from history import router as history_router
 from admin import router as admin_router
 from game import router as game_router
+from social import router as social_router
 
 load_dotenv(override=True)
 
@@ -38,6 +39,7 @@ app.include_router(auth_router)
 app.include_router(history_router)
 app.include_router(admin_router)
 app.include_router(game_router)
+app.include_router(social_router)
 
 
 @app.on_event("startup")
