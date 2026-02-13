@@ -2450,3 +2450,21 @@ h1 {
 .game-back-link:hover {
   text-decoration: underline;
 }
+
+/* === Solo Game === */
+.game-rooms-solo-btn {
+  align-self: center;
+  padding: 0.7rem 2rem;
+  font-size: 1rem;
+  text-decoration: none;
+  text-align: center;
+}
+
+.game-solo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  max-width: 300px;
+}

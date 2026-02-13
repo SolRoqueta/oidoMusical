@@ -10,6 +10,7 @@ import Admin from "./pages/Admin";
 import UserDetail from "./pages/UserDetail";
 import Profile, { getAvatarEmoji } from "./pages/Profile";
 import Game, { stopGameAudio } from "./pages/Game";
+import SoloGame from "./pages/SoloGame";
 import GameRooms from "./pages/GameRooms";
 import Friends from "./pages/Friends";
 import PublicProfile from "./pages/PublicProfile";
@@ -141,6 +142,14 @@ function App() {
           element={
             <ProtectedRoute>
               <GameRooms />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/game/solo"
+          element={
+            <ProtectedRoute>
+              <SoloGame />
             </ProtectedRoute>
           }
         />

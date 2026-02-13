@@ -89,6 +89,11 @@ export default function GameRooms() {
 
         {error && <p className="auth-error">{error}</p>}
 
+        {/* Solo Mode */}
+        <Link to="/game/solo" className="btn btn-record game-rooms-solo-btn">
+          Jugar Solo
+        </Link>
+
         {/* Create Room Section */}
         {!showCreate ? (
           <button
