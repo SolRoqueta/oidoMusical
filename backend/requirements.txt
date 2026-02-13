@@ -8,3 +8,4 @@ PyJWT==2.9.0
 mysql-connector-python==9.6.0
 certifi
 google-auth==2.38.0
+requests==2.32.3
