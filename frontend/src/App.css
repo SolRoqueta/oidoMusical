@@ -586,6 +586,23 @@ h1 {
   text-decoration: underline;
 }
 
+.auth-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin: -0.5rem 0 1.5rem 0;
+}
+
+.google-login-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.auth-loading {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
 /* === Navbar User === */
 .navbar-user {
   display: flex;

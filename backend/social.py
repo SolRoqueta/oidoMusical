@@ -18,12 +18,12 @@ def search_users(q: str = "", user: dict = Depends(get_current_user)):
     try:
         if q.strip():
             cursor.execute(
-                "SELECT id, username, avatar FROM users WHERE username LIKE %s AND id != %s ORDER BY username LIMIT 50",
+                "SELECT id, username, avatar FROM users WHERE username LIKE %s AND id != %s AND role != 'admin' ORDER BY username LIMIT 50",
                 (f"%{q}%", user["id"]),
             )
         else:
             cursor.execute(
-                "SELECT id, username, avatar FROM users WHERE id != %s ORDER BY username LIMIT 50",
+                "SELECT id, username, avatar FROM users WHERE id != %s AND role != 'admin' ORDER BY username LIMIT 50",
                 (user["id"],),
             )
         users = cursor.fetchall()
@@ -77,9 +77,12 @@ def send_friend_request(body: FriendRequestBody, user: dict = Depends(get_curren
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id FROM users WHERE id = %s", (body.receiver_id,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT id, role FROM users WHERE id = %s", (body.receiver_id,))
+        receiver = cursor.fetchone()
+        if not receiver:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if receiver["role"] == "admin":
+            raise HTTPException(status_code=400, detail="No se puede enviar solicitud a un administrador")
 
         # Check if there's already a friendship in either direction
         cursor.execute(
@@ -253,7 +256,7 @@ def get_public_profile(user_id: int, user: dict = Depends(get_current_user)):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT id, username, avatar, created_at FROM users WHERE id = %s",
+            "SELECT id, username, avatar, role, created_at FROM users WHERE id = %s",
             (user_id,),
         )
         profile = cursor.fetchone()
@@ -308,6 +311,7 @@ def get_public_profile(user_id: int, user: dict = Depends(get_current_user)):
             "id": profile["id"],
             "username": profile["username"],
             "avatar": profile.get("avatar", "default"),
+            "role": profile.get("role", "user"),
             "createdAt": profile["created_at"].isoformat() if profile["created_at"] else None,
             "searchCount": search_count,
             "friends": friends,

@@ -1,5 +1,4 @@
 import os
-import bcrypt
 from mysql.connector import pooling
 from dotenv import load_dotenv
 
@@ -38,22 +37,30 @@ def init_db():
             id INT AUTO_INCREMENT PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
+            password_hash VARCHAR(255) DEFAULT NULL,
+            google_id VARCHAR(255) UNIQUE,
             role VARCHAR(20) NOT NULL DEFAULT 'user',
             avatar VARCHAR(20) NOT NULL DEFAULT 'default',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # Add columns if table already exists without them
+    # Add columns / migrate if table already exists
     for col, definition in [
         ("role", "VARCHAR(20) NOT NULL DEFAULT 'user'"),
         ("avatar", "VARCHAR(20) NOT NULL DEFAULT 'default'"),
+        ("google_id", "VARCHAR(255) UNIQUE"),
     ]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
             conn.commit()
         except Exception:
             pass
+    # Make password_hash nullable for existing tables
+    try:
+        cursor.execute("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) DEFAULT NULL")
+        conn.commit()
+    except Exception:
+        pass
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS search_history (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -102,14 +109,6 @@ def init_db():
             UNIQUE KEY unique_friendship (sender_id, receiver_id)
         )
     """)
-    # Create admin user if not exists
-    cursor.execute("SELECT id FROM users WHERE email = %s", ("admin@oidomusical.com",))
-    if not cursor.fetchone():
-        admin_hash = bcrypt.hashpw("Admin123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",
-            ("admin", "admin@oidomusical.com", admin_hash, "admin"),
-        )
     conn.commit()
     cursor.close()
     conn.close()

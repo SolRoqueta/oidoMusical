@@ -11,9 +11,6 @@ export default function Admin() {
   const [error, setError] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
-  const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ username: "", email: "", password: "", role: "user" });
-  const [createError, setCreateError] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
@@ -47,7 +44,7 @@ export default function Admin() {
 
   const startEdit = (user) => {
     setEditingId(user.id);
-    setEditForm({ username: user.username, email: user.email, role: user.role, password: "" });
+    setEditForm({ username: user.username, email: user.email, role: user.role });
   };
 
   const cancelEdit = () => {
@@ -60,7 +57,6 @@ export default function Admin() {
     if (editForm.username) body.username = editForm.username;
     if (editForm.email) body.email = editForm.email;
     if (editForm.role) body.role = editForm.role;
-    if (editForm.password) body.password = editForm.password;
 
     try {
       const res = await fetch(`${API_URL}/admin/users/${id}`, {
@@ -79,25 +75,6 @@ export default function Admin() {
     }
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setCreateError(null);
-    try {
-      const res = await fetch(`${API_URL}/admin/users`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(createForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail);
-      setShowCreate(false);
-      setCreateForm({ username: "", email: "", password: "", role: "user" });
-      fetchUsers();
-    } catch (e) {
-      setCreateError(e.message);
-    }
-  };
-
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
@@ -107,51 +84,9 @@ export default function Admin() {
     <div className="admin-page">
       <div className="admin-header">
         <h2>Gestión de Usuarios</h2>
-        <button className="btn btn-auth btn-create-user" onClick={() => setShowCreate(!showCreate)}>
-          {showCreate ? "Cancelar" : "+ Nuevo Usuario"}
-        </button>
       </div>
 
       {error && <p className="auth-error">{error}</p>}
-
-      {showCreate && (
-        <form className="admin-create-form" onSubmit={handleCreate}>
-          <input
-            className="auth-input"
-            placeholder="Nombre de usuario"
-            value={createForm.username}
-            onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
-            required
-          />
-          <input
-            className="auth-input"
-            type="email"
-            placeholder="Email"
-            value={createForm.email}
-            onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-            required
-          />
-          <input
-            className="auth-input"
-            type="password"
-            placeholder="Contraseña (mín. 6 caracteres)"
-            value={createForm.password}
-            onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-            required
-            minLength={6}
-          />
-          <select
-            className="auth-input"
-            value={createForm.role}
-            onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-          >
-            <option value="user">Usuario</option>
-            <option value="admin">Administrador</option>
-          </select>
-          {createError && <p className="auth-error">{createError}</p>}
-          <button type="submit" className="btn btn-auth">Crear Usuario</button>
-        </form>
-      )}
 
       <div className="admin-table-wrapper">
         <table className="admin-table">

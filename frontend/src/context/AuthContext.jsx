@@ -29,27 +29,14 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, [token]);
 
-  const login = async (email, password) => {
-    const res = await fetch(`${API_URL}/auth/login`, {
+  const loginWithGoogle = async (credential) => {
+    const res = await fetch(`${API_URL}/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ credential }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Error al iniciar sesión");
-    localStorage.setItem("oidoMusical_token", data.token);
-    setToken(data.token);
-    setUser(data.user);
-  };
-
-  const register = async (username, email, password) => {
-    const res = await fetch(`${API_URL}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Error al registrarse");
+    if (!res.ok) throw new Error(data.detail || "Error al iniciar sesión con Google");
     localStorage.setItem("oidoMusical_token", data.token);
     setToken(data.token);
     setUser(data.user);
@@ -67,7 +54,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, loginWithGoogle, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

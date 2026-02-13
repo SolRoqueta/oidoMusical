@@ -1,4 +1,3 @@
-import bcrypt
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
@@ -9,17 +8,9 @@ from auth import require_admin
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-class CreateUserBody(BaseModel):
-    username: str
-    email: str
-    password: str
-    role: str = "user"
-
-
 class UpdateUserBody(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
-    password: Optional[str] = None
     role: Optional[str] = None
 
 
@@ -40,37 +31,6 @@ def list_users(admin: dict = Depends(require_admin)):
             }
             for r in rows
         ]
-    finally:
-        cursor.close()
-        conn.close()
-
-
-@router.post("/users")
-def create_user(body: CreateUserBody, admin: dict = Depends(require_admin)):
-    if not body.username or not body.email or not body.password:
-        raise HTTPException(status_code=400, detail="Todos los campos son obligatorios")
-    if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-    if body.role not in ("user", "admin"):
-        raise HTTPException(status_code=400, detail="Rol inválido")
-
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT id FROM users WHERE email = %s", (body.email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email")
-        cursor.execute("SELECT id FROM users WHERE username = %s", (body.username,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=409, detail="Ese nombre de usuario ya está en uso")
-
-        password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",
-            (body.username, body.email, password_hash, body.role),
-        )
-        conn.commit()
-        return {"message": "Usuario creado", "id": cursor.lastrowid}
     finally:
         cursor.close()
         conn.close()
@@ -99,12 +59,6 @@ def update_user(user_id: int, body: UpdateUserBody, admin: dict = Depends(requir
                 raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email")
             updates.append("email = %s")
             values.append(body.email)
-        if body.password is not None:
-            if len(body.password) < 6:
-                raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-            password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            updates.append("password_hash = %s")
-            values.append(password_hash)
         if body.role is not None:
             if body.role not in ("user", "admin"):
                 raise HTTPException(status_code=400, detail="Rol inválido")

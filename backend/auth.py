@@ -1,11 +1,12 @@
 import os
 from datetime import datetime, timedelta, timezone
 
-import bcrypt
 import jwt
 from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from dotenv import load_dotenv
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 from database import get_connection
 
@@ -14,25 +15,17 @@ load_dotenv()
 JWT_SECRET = os.getenv("JWT_SECRET", "changeme")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-class RegisterBody(BaseModel):
-    username: str
-    email: str
-    password: str
-
-
-class LoginBody(BaseModel):
-    email: str
-    password: str
+class GoogleAuthBody(BaseModel):
+    credential: str
 
 
 class ProfileUpdateBody(BaseModel):
     username: str | None = None
-    email: str | None = None
-    password: str | None = None
     avatar: str | None = None
 
 
@@ -66,56 +59,78 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
-@router.post("/register")
-def register(body: RegisterBody):
-    if not body.username or not body.email or not body.password:
-        raise HTTPException(status_code=400, detail="Todos los campos son obligatorios")
-    if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+@router.post("/google")
+def google_auth(body: GoogleAuthBody):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID no configurado en el servidor")
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id FROM users WHERE email = %s", (body.email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email")
-
-        cursor.execute("SELECT id FROM users WHERE username = %s", (body.username,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=409, detail="Ese nombre de usuario ya está en uso")
-
-        password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        cursor.execute(
-            "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)",
-            (body.username, body.email, password_hash),
+        idinfo = id_token.verify_oauth2_token(
+            body.credential, google_requests.Request(), GOOGLE_CLIENT_ID
         )
-        conn.commit()
-        user_id = cursor.lastrowid
-        token = create_token(user_id, body.username, "user")
-        return {"token": token, "user": {"id": user_id, "username": body.username, "email": body.email, "role": "user", "avatar": "default"}}
-    finally:
-        cursor.close()
-        conn.close()
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token de Google inválido")
 
+    google_id = idinfo["sub"]
+    email = idinfo.get("email", "")
+    name = idinfo.get("name", email.split("@")[0])
 
-@router.post("/login")
-def login(body: LoginBody):
-    if not body.email or not body.password:
-        raise HTTPException(status_code=400, detail="Email y contraseña son obligatorios")
+    if not email:
+        raise HTTPException(status_code=400, detail="No se pudo obtener el email de Google")
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id, username, email, password_hash, role, avatar FROM users WHERE email = %s", (body.email,))
+        # Try to find user by google_id
+        cursor.execute(
+            "SELECT id, username, email, role, avatar, google_id FROM users WHERE google_id = %s",
+            (google_id,),
+        )
         user = cursor.fetchone()
-        if not user:
-            raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
 
-        if not bcrypt.checkpw(body.password.encode("utf-8"), user["password_hash"].encode("utf-8")):
-            raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
+        if not user:
+            # Try to find by email (link existing account or admin placeholder)
+            cursor.execute(
+                "SELECT id, username, email, role, avatar, google_id FROM users WHERE email = %s",
+                (email,),
+            )
+            user = cursor.fetchone()
+
+            if user:
+                # Link Google account to existing user
+                cursor.execute(
+                    "UPDATE users SET google_id = %s WHERE id = %s",
+                    (google_id, user["id"]),
+                )
+                conn.commit()
+                user["google_id"] = google_id
+            else:
+                # Auto-register new user
+                cursor.execute(
+                    "INSERT INTO users (username, email, google_id) VALUES (%s, %s, %s)",
+                    (name, email, google_id),
+                )
+                conn.commit()
+                user = {
+                    "id": cursor.lastrowid,
+                    "username": name,
+                    "email": email,
+                    "role": "user",
+                    "avatar": "default",
+                    "google_id": google_id,
+                }
 
         token = create_token(user["id"], user["username"], user["role"])
-        return {"token": token, "user": {"id": user["id"], "username": user["username"], "email": user["email"], "role": user["role"], "avatar": user.get("avatar", "default")}}
+        return {
+            "token": token,
+            "user": {
+                "id": user["id"],
+                "username": user["username"],
+                "email": user["email"],
+                "role": user["role"],
+                "avatar": user.get("avatar", "default"),
+            },
+        }
     finally:
         cursor.close()
         conn.close()
@@ -152,18 +167,6 @@ def update_profile(body: ProfileUpdateBody, user: dict = Depends(get_current_use
                 raise HTTPException(status_code=409, detail="Ese nombre de usuario ya está en uso")
             updates.append("username = %s")
             values.append(body.username)
-        if body.email is not None:
-            cursor.execute("SELECT id FROM users WHERE email = %s AND id != %s", (body.email, user["id"]))
-            if cursor.fetchone():
-                raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email")
-            updates.append("email = %s")
-            values.append(body.email)
-        if body.password is not None:
-            if len(body.password) < 6:
-                raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-            password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            updates.append("password_hash = %s")
-            values.append(password_hash)
         if body.avatar is not None:
             if body.avatar not in VALID_AVATARS:
                 raise HTTPException(status_code=400, detail="Avatar inválido")

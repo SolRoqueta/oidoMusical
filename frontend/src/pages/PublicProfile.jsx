@@ -125,7 +125,7 @@ export default function PublicProfile() {
 
         {error && <p className="auth-error">{error}</p>}
 
-        <div className="public-profile-action">
+        {profile.role !== "admin" && <div className="public-profile-action">
           {profile.friendshipStatus === "accepted" ? (
             <button
               className="btn-friend-remove-lg"
@@ -153,7 +153,7 @@ export default function PublicProfile() {
               Agregar amigo
             </button>
           )}
-        </div>
+        </div>}
 
         {profile.friends.length > 0 && (
           <div className="public-profile-friends">

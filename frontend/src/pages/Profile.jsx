@@ -28,8 +28,6 @@ export default function Profile() {
   const { user, token, refreshUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState(user?.username || "");
-  const [email, setEmail] = useState(user?.email || "");
-  const [password, setPassword] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar || "default");
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -49,8 +47,6 @@ export default function Profile() {
   const handleCancel = () => {
     setEditing(false);
     setUsername(user.username);
-    setEmail(user.email);
-    setPassword("");
     setSelectedAvatar(user.avatar || "default");
     setError(null);
     setSuccess(null);
@@ -64,8 +60,6 @@ export default function Profile() {
 
     const body = {};
     if (username !== user.username) body.username = username;
-    if (email !== user.email) body.email = email;
-    if (password) body.password = password;
     if (selectedAvatar !== (user.avatar || "default")) body.avatar = selectedAvatar;
 
     if (Object.keys(body).length === 0) {
@@ -84,7 +78,6 @@ export default function Profile() {
       if (!res.ok) throw new Error(data.detail);
       localStorage.setItem("oidoMusical_token", data.token);
       refreshUser(data.token, data.user);
-      setPassword("");
       setSuccess("Perfil actualizado correctamente");
       setEditing(false);
     } catch (err) {
@@ -140,24 +133,12 @@ export default function Profile() {
                 />
               </div>
               <div className="profile-field">
-                <label className="profile-label">Email</label>
+                <label className="profile-label">Email (de Google)</label>
                 <input
                   type="email"
                   className="auth-input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="profile-field">
-                <label className="profile-label">Nueva contraseña (dejar vacío para no cambiar)</label>
-                <input
-                  type="password"
-                  className="auth-input"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  minLength={6}
+                  value={user.email}
+                  disabled
                 />
               </div>
 
