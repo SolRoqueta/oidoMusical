@@ -70,6 +70,8 @@ def google_auth(body: GoogleAuthBody):
         )
     except ValueError:
         raise HTTPException(status_code=401, detail="Token de Google inválido")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error al verificar token con Google: {e}")
 
     google_id = idinfo["sub"]
     email = idinfo.get("email", "")
@@ -78,7 +80,11 @@ def google_auth(body: GoogleAuthBody):
     if not email:
         raise HTTPException(status_code=400, detail="No se pudo obtener el email de Google")
 
-    conn = get_connection()
+    try:
+        conn = get_connection()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Error de conexión a la base de datos: {e}")
+
     cursor = conn.cursor(dictionary=True)
     try:
         # Try to find user by google_id

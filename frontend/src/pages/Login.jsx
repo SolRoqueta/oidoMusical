@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Login() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, backendReady } = useAuth();
   const navigate = useNavigate();
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -36,6 +36,10 @@ export default function Login() {
         </div>
         <h2 className="auth-title">OidoMusical</h2>
         <p className="auth-subtitle">Tararea una canción y descubre su nombre</p>
+
+        {!backendReady && (
+          <p className="auth-loading">Conectando con el servidor...</p>
+        )}
 
         {error && <p className="auth-error">{error}</p>}
 

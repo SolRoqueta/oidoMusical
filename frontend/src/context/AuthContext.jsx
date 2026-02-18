@@ -3,17 +3,40 @@ import { createContext, useContext, useState, useEffect } from "react";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const AuthContext = createContext(null);
 
+async function fetchWithRetry(url, options = {}, retries = 2, delay = 3000) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      return res;
+    } catch (err) {
+      if (i === retries) throw err;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem("oidoMusical_token"));
   const [loading, setLoading] = useState(true);
+  const [backendReady, setBackendReady] = useState(false);
+
+  // Wake up backend on mount (handles Render free-tier cold start)
+  useEffect(() => {
+    fetch(`${API_URL}/health`).then(() => setBackendReady(true)).catch(() => {
+      // Retry once after 3s if backend is sleeping
+      setTimeout(() => {
+        fetch(`${API_URL}/health`).then(() => setBackendReady(true)).catch(() => setBackendReady(true));
+      }, 3000);
+    });
+  }, []);
 
   useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
     }
-    fetch(`${API_URL}/auth/me`, {
+    fetchWithRetry(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -30,12 +53,22 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const loginWithGoogle = async (credential) => {
-    const res = await fetch(`${API_URL}/auth/google`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential }),
-    });
-    const data = await res.json();
+    let res;
+    try {
+      res = await fetchWithRetry(`${API_URL}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+    } catch {
+      throw new Error("No se pudo conectar al servidor. Puede estar iniciando, intenta de nuevo en unos segundos.");
+    }
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Error del servidor (${res.status}). Intenta de nuevo.`);
+    }
     if (!res.ok) throw new Error(data.detail || "Error al iniciar sesión con Google");
     localStorage.setItem("oidoMusical_token", data.token);
     setToken(data.token);
@@ -54,7 +87,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, loginWithGoogle, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, backendReady, loginWithGoogle, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
